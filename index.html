@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ECEFED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1311" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="日日帳">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>日日帳</title>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one-column phone ledger. Sticky month bar, flat summary strip, ruled day groups,
+   fixed tab bar whose primary button opens a near-full-height entry sheet with a custom keypad.
+   Category identity is a one-character stamp (餐 交 購 ...) instead of icons. */
+:root{
+  --bg:#ECEFED; --surface:#FFFFFF; --ink:#0F1B19; --muted:#5C6C68; --line:#D8DFDC;
+  --accent:#0A7664; --accent-ink:#FFFFFF; --accent-soft:#D8EDE8; --bar-dim:#9FD0C6;
+  --warn:#B4400E; --warn-soft:#F6E2D5; --warn-ink:#FFFFFF; --scrim:rgba(10,20,18,.45);
+  --f-ui:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-num:"DM Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1311; --surface:#141D1B; --ink:#E7EFEC; --muted:#8FA09B; --line:#24312E;
+    --accent:#3CCBB0; --accent-ink:#06201B; --accent-soft:#16342E; --bar-dim:#2B6E62;
+    --warn:#F2915B; --warn-soft:#3A2418; --warn-ink:#2A1204; --scrim:rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1311; --surface:#141D1B; --ink:#E7EFEC; --muted:#8FA09B; --line:#24312E;
+  --accent:#3CCBB0; --accent-ink:#06201B; --accent-soft:#16342E; --bar-dim:#2B6E62;
+  --warn:#F2915B; --warn-soft:#3A2418; --warn-ink:#2A1204; --scrim:rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; padding-block:0 104px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--bg); color:var(--ink);
+  font-family:var(--f-ui); font-size:15px; line-height:1.5;
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto}
+.n{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.muted{color:var(--muted)}
+
+/* month bar */
+.mbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:8px;padding-block:8px}
+.mbar .nav{width:44px;height:44px;border:0;border-radius:12px;background:var(--surface);color:var(--ink);display:grid;place-items:center}
+.mlabel{display:flex;align-items:baseline;justify-content:center;gap:8px;flex:1;min-width:0}
+.mlabel .y{color:var(--muted);font-size:14px}
+.mlabel .m{font-size:22px;font-weight:700}
+.pill{border:0;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px;padding:4px 10px;font-weight:500}
+
+/* summary */
+.sum{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;padding:14px 2px 10px;align-items:end}
+.lbl{font-size:13px;color:var(--muted);letter-spacing:.04em}
+.big{font-size:32px;line-height:1.15;font-weight:500;word-break:break-all}
+.sum-side{display:grid;gap:6px}
+.srw{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.srw .n{font-size:16px}
+.neg{color:var(--warn)}
+.budget{background:var(--surface);border-radius:14px;padding:12px 14px;margin-top:8px}
+.b-top{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.track{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}
+.fill{height:100%;border-radius:3px;background:var(--accent);width:0}
+.fill.over{background:var(--warn)}
+.b-sub{margin-top:8px;font-size:13px;color:var(--muted)}
+.over{color:var(--warn)}
+.brow + .brow{margin-top:14px}
+.brow .b-top > span:first-child{font-weight:500}
+.pct{font-style:normal;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:400}
+.b-sub.other{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.alloc{margin:8px 2px 0;font-size:13px;color:var(--muted)}
+.list.mt{margin-top:10px}
+.grow{display:grid;grid-template-columns:minmax(0,1fr) 92px 44px auto;gap:8px;align-items:center;padding:8px 0}
+.grow + .grow{border-top:1px solid var(--line)}
+.grow input{min-width:0;width:100%;height:40px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);padding:0 10px;font-size:16px}
+.pctc{text-align:right;font-size:13px}
+.srow.has-g{grid-template-columns:36px minmax(0,1fr) 88px auto;gap:8px}
+select.sel{min-width:0;width:100%;height:36px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:inherit;font-size:14px;padding:0 6px}
+
+/* segmented control */
+.seg{display:inline-flex;background:var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:8px;padding:7px 14px;font-size:14px;color:var(--muted);min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700}
+.seg.sm button{padding:5px 12px;font-size:13px;min-height:32px}
+.filter{margin:14px 0 4px}
+
+/* day groups + rows */
+.day{background:var(--surface);border-radius:14px;margin-top:12px;overflow:hidden}
+.day-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px 6px;font-size:13px;color:var(--muted)}
+.tag{font-style:normal;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:12px}
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:11px 14px;background:none;border:0;border-top:1px solid var(--line);text-align:left}
+.meta{display:flex;flex-direction:column;min-width:0}
+.cat{font-weight:500}
+.sub{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amt{font-size:16px;text-align:right}
+.amt.in{color:var(--accent)}
+.stamp{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:16px;flex:0 0 auto}
+.stamp.in{background:var(--accent);color:var(--accent-ink)}
+
+/* empty + loading */
+.empty{text-align:center;padding:48px 16px 24px;display:grid;gap:10px;justify-items:center}
+.empty-mark{font-size:56px;color:var(--line);line-height:1}
+.empty h2{margin:0;font-size:18px}
+.empty p{margin:0;color:var(--muted);max-width:26em}
+.loading{padding:64px 0;text-align:center;color:var(--muted)}
+.notice{margin:8px 0 4px;padding:10px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+
+/* stats */
+.stat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+.sum1{padding:14px 2px 6px}
+.subline{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--surface);border-radius:14px;padding:14px;margin-top:12px}
+.card h2{margin:0 0 8px;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.04em}
+svg.chart{display:block;width:100%;height:auto}
+svg.chart text{fill:var(--muted);font-family:var(--f-num);font-size:10px}
+svg.chart .grid{stroke:var(--line);stroke-width:1}
+svg.chart .bar{fill:var(--accent)}
+svg.chart .bar.dim{fill:var(--bar-dim)}
+.crow{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0}
+.crow + .crow{border-top:1px solid var(--line)}
+.cl{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.camt{font-size:15px}
+
+/* settings */
+.ptitle{font-size:22px;margin:0;padding-top:20px}
+.sec{margin-top:24px}
+.sec h2{font-size:13px;font-weight:500;color:var(--muted);letter-spacing:.06em;margin:0 0 8px}
+.sec .seg{margin-bottom:8px}
+.help{margin:8px 2px 0;font-size:13px;color:var(--muted)}
+.list{background:var(--surface);border-radius:14px;padding:4px 14px}
+.srow{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 0}
+.srow + .srow{border-top:1px solid var(--line)}
+.srow input{min-width:0;width:100%;border:0;background:transparent;font-size:16px;padding:8px 0}
+.srow.off .stamp{opacity:.4}
+.srow.off input{color:var(--muted)}
+.textbtn{background:none;border:0;color:var(--accent);padding:10px 4px;font-size:14px;min-height:44px}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.addrow input{flex:1;min-width:0;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);padding:0 12px;font-size:16px}
+.btn{height:44px;padding:0 18px;border-radius:12px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1.5px solid var(--line)}
+.btn.wide{width:100%;margin-top:10px}
+.datarow p{margin:10px 0;font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);font-size:14px}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:500}
+.chip.rm{display:inline-flex;align-items:center;padding-right:4px}
+.chip.rm button{background:none;border:0;color:var(--muted);font-size:18px;line-height:1;min-width:32px;min-height:32px}
+
+/* fields (sheet + settings) */
+.field{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:12px;padding:0 14px;min-height:48px;margin-top:10px}
+.field > span{color:var(--muted);flex:0 0 auto;font-size:14px;min-width:3em}
+.field input{flex:1;min-width:0;width:100%;border:0;background:transparent;font-size:16px;padding:12px 0}
+.field input:focus-visible{outline:0}
+.field:focus-within{outline:2px solid var(--accent)}
+.qd{flex:0 0 auto;border:0;border-radius:999px;background:var(--accent-soft);color:var(--accent);padding:6px 12px;font-size:13px}
+
+/* tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:1px solid var(--line);
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.tabbar-in{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:4px}
+.tab{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;background:none;border:0;color:var(--muted);font-size:11px;border-radius:10px}
+.tab[aria-current="page"]{color:var(--accent);font-weight:700}
+.add{flex:0 0 auto;margin-left:6px;height:48px;padding:0 20px;border-radius:24px;background:var(--accent);color:var(--accent-ink);border:0;font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px}
+
+/* entry sheet */
+.sheet{position:fixed;inset:0;z-index:20;background:var(--scrim);display:flex;align-items:flex-end;justify-content:center}
+.panel{background:var(--bg);width:100%;max-width:520px;height:calc(100% - max(20px,env(safe-area-inset-top,0px)));border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:env(safe-area-inset-bottom,0px);animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.panel{animation:none}}
+.p-bar{display:grid;grid-template-columns:72px 1fr 72px;align-items:center;padding:10px 12px 4px}
+.p-bar .link{background:none;border:0;min-height:44px;font-size:15px;color:var(--muted)}
+.p-bar .link.go{color:var(--accent);font-weight:700;text-align:right}
+.p-bar .seg{justify-self:center}
+.amount{display:flex;align-items:baseline;gap:8px;padding:6px 20px 0;min-height:64px}
+.amount .cur{font-size:22px;color:var(--muted)}
+.amount .big{font-size:44px;line-height:1.1;word-break:break-all}
+.amount .big.zero{color:var(--muted)}
+.amount .total{margin-left:auto;font-size:15px;color:var(--muted)}
+.hint{min-height:22px;padding:0 20px;font-size:13px;color:var(--warn)}
+.p-scroll{flex:1;min-height:0;overflow-y:auto;padding:4px 16px 12px;-webkit-overflow-scrolling:touch}
+.p-label{font-size:13px;color:var(--muted);margin:12px 2px 6px}
+.cat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.cat-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px;border-radius:12px;border:1.5px solid transparent;background:var(--surface);font-size:13px}
+.cat-btn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.cat-btn .stamp{width:32px;height:32px;font-size:15px}
+.cat-none{grid-column:1 / -1;color:var(--muted);font-size:14px;padding:8px 2px}
+.danger{margin-top:16px;width:100%;min-height:48px;border-radius:12px;border:1.5px solid var(--warn);background:transparent;color:var(--warn);font-weight:500}
+.danger.armed{background:var(--warn);color:var(--warn-ink)}
+.keypad{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,52px);gap:8px;padding:10px 16px 12px;border-top:1px solid var(--line)}
+.key{border:0;border-radius:12px;background:var(--surface);color:var(--ink);font-family:var(--f-num);font-size:22px}
+.key.op{background:var(--accent-soft);color:var(--accent)}
+.key.save{grid-column:4;grid-row:3 / span 2;background:var(--accent);color:var(--accent-ink);font-family:var(--f-ui);font-weight:700;font-size:17px}
+.panel.typing .keypad{display:none}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--bg);border-radius:999px;padding:10px 18px;font-size:14px;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.toast.bad{background:var(--warn);color:var(--warn-ink)}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="mainwrap">
+  <div class="mbar" id="mbar"></div>
+  <main id="main"><div class="loading">讀取帳本中…</div></main>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="主選單">
+  <div class="tabbar-in">
+    <button type="button" class="tab" data-a="view" data-v="list">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>明細</span>
+    </button>
+    <button type="button" class="tab" data-a="view" data-v="stats">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span>統計</span>
+    </button>
+    <button type="button" class="tab" data-a="view" data-v="settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg><span>設定</span>
+    </button>
+    <button type="button" class="add" data-a="add">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>記一筆</span>
+    </button>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" id="panel" role="dialog" aria-modal="true" aria-label="記一筆">
+    <div class="p-bar">
+      <button type="button" class="link" data-a="sh-close">取消</button>
+      <div class="seg" role="group" aria-label="類型">
+        <button type="button" data-a="sh-type" data-t="e" aria-pressed="true">支出</button>
+        <button type="button" data-a="sh-type" data-t="i" aria-pressed="false">收入</button>
+      </div>
+      <button type="button" class="link go" data-a="sh-save">儲存</button>
+    </div>
+    <div class="amount" aria-live="polite">
+      <span class="cur n">$</span><span class="big n zero" id="sh-amt">0</span><span class="total n" id="sh-total"></span>
+    </div>
+    <div class="hint" id="sh-hint" role="alert"></div>
+    <div class="p-scroll">
+      <div class="p-label">類別</div>
+      <div class="cat-grid" id="sh-cats"></div>
+      <label class="field" for="sh-note"><span>備註</span><input id="sh-note" type="text" maxlength="60" placeholder="例如：早餐、捷運" autocomplete="off" enterkeyhint="done"></label>
+      <label class="field" for="sh-date"><span>日期</span><input id="sh-date" type="date"><button type="button" class="qd" data-a="sh-qd" data-o="-1">昨天</button><button type="button" class="qd" data-a="sh-qd" data-o="0">今天</button></label>
+      <div id="sh-paywrap"><div class="p-label">付款方式</div><div class="chips" id="sh-pays"></div></div>
+      <button type="button" class="danger" id="sh-del" data-a="sh-del" hidden>刪除這筆</button>
+    </div>
+    <div class="keypad" id="keypad">
+      <button type="button" class="key" data-a="k" data-k="7">7</button>
+      <button type="button" class="key" data-a="k" data-k="8">8</button>
+      <button type="button" class="key" data-a="k" data-k="9">9</button>
+      <button type="button" class="key op" data-a="k" data-k="bk" aria-label="刪除一位">⌫</button>
+      <button type="button" class="key" data-a="k" data-k="4">4</button>
+      <button type="button" class="key" data-a="k" data-k="5">5</button>
+      <button type="button" class="key" data-a="k" data-k="6">6</button>
+      <button type="button" class="key op" data-a="k" data-k="+" aria-label="加">+</button>
+      <button type="button" class="key" data-a="k" data-k="1">1</button>
+      <button type="button" class="key" data-a="k" data-k="2">2</button>
+      <button type="button" class="key" data-a="k" data-k="3">3</button>
+      <button type="button" class="key save" data-a="sh-save">儲存</button>
+      <button type="button" class="key" data-a="k" data-k="00">00</button>
+      <button type="button" class="key" data-a="k" data-k="0">0</button>
+      <button type="button" class="key" data-a="k" data-k=".">.</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="imp" accept="application/json,.json" hidden>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => (n < 10 ? '0' : '') + n;
+const dstr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => dstr(new Date());
+const ymOf = ds => ds.slice(0, 7);
+const addMonth = (k, n) => { const d = new Date(+k.slice(0, 4), +k.slice(5, 7) - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const daysIn = k => new Date(+k.slice(0, 4), +k.slice(5, 7), 0).getDate();
+const r2 = n => Math.round(n * 100) / 100;
+const fmt = n => r2(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const compact = n => n >= 1000 ? (n / 1000 >= 10 ? Math.round(n / 1000) : Math.round(n / 100) / 10) + 'k' : String(Math.round(n));
+const WD = '日一二三四五六';
+const mkId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const clone = o => JSON.parse(JSON.stringify(o));
+const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem('rrz.' + k); localStorage.setItem('rrz.' + k, v); } catch (e) {} return null; };
+
+const DEF_CATS = [
+  { id: 'f1', name: '早餐', t: 'e', g: 'g1' }, { id: 'f2', name: '午餐', t: 'e', g: 'g1' },
+  { id: 'f3', name: '晚餐', t: 'e', g: 'g1' }, { id: 'f4', name: '宵夜', t: 'e', g: 'g1' },
+  { id: 'f5', name: '奉獻', t: 'e', g: 'g2' }, { id: 'f6', name: '家用', t: 'e', g: 'g3' },
+  { id: 'f7', name: '交通', t: 'e', g: 'g4' }, { id: 'f8', name: '娛樂', t: 'e', g: 'g5' },
+  { id: 'i1', name: '薪資', t: 'i', g: '' }, { id: 'i2', name: '獎金', t: 'i', g: '' }, { id: 'i3', name: '投資', t: 'i', g: '' },
+  { id: 'i4', name: '副業', t: 'i', g: '' }, { id: 'i5', name: '其他', t: 'i', g: '' }
+];
+const DEF_GROUPS = [
+  { id: 'g1', name: '食', budget: 5000 }, { id: 'g2', name: '奉獻', budget: 0 }, { id: 'g3', name: '家用', budget: 0 },
+  { id: 'g4', name: '交通', budget: 0 }, { id: 'g5', name: '娛樂', budget: 0 }
+];
+const DEF_PAYS = ['現金', '信用卡', '行動支付', '悠遊卡', '轉帳'];
+
+function normCfg(c) {
+  if (!c) return { v: 2, cats: clone(DEF_CATS), groups: clone(DEF_GROUPS), pays: clone(DEF_PAYS), income: 20000 };
+  let cats = Array.isArray(c.cats) && c.cats.length
+    ? c.cats.map(x => ({ id: String(x.id), name: String(x.name || ''), t: x.t === 'i' ? 'i' : 'e', off: !!x.off, g: String(x.g || '') }))
+    : clone(DEF_CATS);
+  let groups = Array.isArray(c.groups)
+    ? c.groups.map(g => ({ id: String(g.id), name: String(g.name || ''), budget: Math.max(0, +g.budget || 0) }))
+    : clone(DEF_GROUPS);
+  if (!c.v) {
+    /* settings saved by the first version: hide the old expense tags (old records still resolve) and add the new ones */
+    cats = cats.map(x => (x.t === 'e' ? Object.assign(x, { off: true }) : x)).concat(clone(DEF_CATS.filter(x => x.t === 'e')));
+    groups = clone(DEF_GROUPS);
+  }
+  return {
+    v: 2, cats, groups,
+    pays: Array.isArray(c.pays) ? c.pays.map(String) : clone(DEF_PAYS),
+    income: c.v ? Math.max(0, +c.income || 0) : 20000
+  };
+}
+
+const S = { view: 'list', month: ymOf(today()), filter: 'all', stat: 'e', catTab: 'e', cfg: normCfg(null), months: {}, ready: false, mode: null, err: '', dl: null };
+let store = null;
+let SH = null;
+
+/* ---------- storage ---------- */
+function cloudStore(db, uid) {
+  const col = db.collection('data/users/' + uid);
+  let q = Promise.resolve();
+  const enqueue = job => { const p = q.then(job); q = p.catch(() => {}); return p; };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const setDoc = async (ref, data) => {
+    try { await ref.set(data); }
+    catch (e) {
+      if (e && e.code === 'unavailable') { await sleep(700 + Math.random() * 500); await ref.set(data); }
+      else throw e;
+    }
+  };
+  return {
+    subscribe(cb, onErr) {
+      return col.onSnapshot(snap => { const o = {}; snap.docs.forEach(d => { o[d.id] = d.data(); }); cb(o); }, onErr);
+    },
+    mutateMonth(key, fn) {
+      return enqueue(async () => {
+        const ref = col.doc('m-' + key);
+        const s = await ref.get();
+        const d = s.exists ? s.data() : null;
+        const items = d && Array.isArray(d.items) ? d.items.map(x => Object.assign({}, x)) : [];
+        await setDoc(ref, { items: fn(items) });
+      });
+    },
+    saveCfg(cfg) { return enqueue(() => setDoc(col.doc('settings'), clone(cfg))); }
+  };
+}
+
+function localStore() {
+  const KEY = 'rrz.ledger.v1';
+  let data = {}; const subs = [];
+  try { const raw = localStorage.getItem(KEY); if (raw) data = JSON.parse(raw) || {}; } catch (e) {}
+  const persist = () => localStorage.setItem(KEY, JSON.stringify(data));
+  const emit = () => subs.forEach(f => f(clone(data)));
+  /* a write that cannot reach storage is rolled back and rejected, so the page never shows a record that was not kept */
+  const commit = (id, val) => {
+    const prev = data[id];
+    data[id] = val;
+    try { persist(); } catch (e) { if (prev === undefined) delete data[id]; else data[id] = prev; return Promise.reject(e); }
+    emit(); return Promise.resolve();
+  };
+  return {
+    subscribe(cb) { subs.push(cb); setTimeout(() => cb(clone(data)), 0); return () => {}; },
+    mutateMonth(key, fn) {
+      const id = 'm-' + key;
+      const items = ((data[id] && data[id].items) || []).map(x => Object.assign({}, x));
+      return commit(id, { items: fn(items) });
+    },
+    saveCfg(cfg) { return commit('settings', clone(cfg)); }
+  };
+}
+
+function ingest(docs) {
+  const months = {}; let cfg = null;
+  Object.keys(docs).forEach(id => {
+    const d = docs[id] || {};
+    if (id === 'settings') cfg = d;
+    else if (/^m-\d{4}-\d{2}$/.test(id)) months[id.slice(2)] = Array.isArray(d.items) ? d.items : [];
+  });
+  S.months = months; S.cfg = normCfg(cfg); S.ready = true; S.err = '';
+  render();
+}
+
+function run(p, ok) {
+  p.then(() => { if (ok) toast(ok); })
+   .catch(e => toast(e && e.code === 'quota_exceeded' ? '儲存空間已滿，無法新增' : '儲存失敗，請再試一次', true));
+}
+
+/* ---------- data helpers ---------- */
+const items = key => S.months[key] || [];
+function totals(key) { let e = 0, i = 0; items(key).forEach(x => { if (x.t === 'i') i += x.a; else e += x.a; }); return { e: r2(e), i: r2(i) }; }
+const catOf = id => S.cfg.cats.find(c => c.id === id) || { id, name: '未分類', t: 'e' };
+const glyph = c => Array.from(c.name || '?')[0];
+function findTx(id) {
+  const cur = items(S.month).find(x => x.id === id);
+  if (cur) return cur;
+  for (const k of Object.keys(S.months)) { const f = S.months[k].find(x => x.id === id); if (f) return f; }
+  return null;
+}
+const niceMax = m => { if (m <= 0) return 100; const p = Math.pow(10, Math.floor(Math.log10(m))); const f = m / p; const nf = [1, 2, 4, 6, 8, 10].find(v => v >= f); return nf * p; };
+
+/* ---------- views ---------- */
+const isInstalled = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+function notices() {
+  if (S.err) return `<p class="notice">${esc(S.err)}</p>`;
+  if (S.mode !== 'local') return '';
+  if (!S.pwa) return '<p class="notice">資料目前只存在這個瀏覽器，清除網站資料或換裝置就會消失。從 Claude 開啟這個頁面可以存到你的帳號。</p>';
+  if (isInstalled()) return '';
+  return '<p class="notice">目前在瀏覽器分頁中使用，系統可能會清掉資料。iPhone 請點分享，選「加入主畫面」；Android 請從選單選「安裝應用程式」，之後從主畫面圖示開啟。</p>';
+}
+
+function summaryHtml(key) {
+  const t = totals(key), bal = r2(t.i - t.e), cfg = S.cfg;
+  let h = `<section class="sum"><div><div class="lbl">支出</div><div class="big n">$${fmt(t.e)}</div></div>
+    <div class="sum-side"><div class="srw"><span class="lbl">收入</span><span class="n">${fmt(t.i)}</span></div>
+    <div class="srw"><span class="lbl">結餘</span><span class="n ${bal < 0 ? 'neg' : ''}">${bal < 0 ? '−' : ''}${fmt(Math.abs(bal))}</span></div></div></section>`;
+  return h + budgetHtml(key);
+}
+
+function groupSpend(key) {
+  const by = {};
+  items(key).forEach(x => {
+    if (x.t === 'i') return;
+    const c = S.cfg.cats.find(k => k.id === x.c);
+    const g = c && c.g && S.cfg.groups.some(q => q.id === c.g) ? c.g : '';
+    by[g] = r2((by[g] || 0) + x.a);
+  });
+  return by;
+}
+
+function budgetHtml(key) {
+  const gs = S.cfg.groups.filter(g => g.budget > 0);
+  if (!gs.length) return '';
+  const by = groupSpend(key), inc = S.cfg.income, cur = key === ymOf(today()), dl = daysIn(key) - new Date().getDate() + 1;
+  let spentIn = 0;
+  let h = '<section class="card"><h2>本月預算</h2>';
+  gs.forEach(g => {
+    const sp = by[g.id] || 0, left = r2(g.budget - sp), over = left < 0;
+    spentIn += sp;
+    h += `<div class="brow"><div class="b-top"><span>${esc(g.name)}${inc > 0 ? `<em class="pct">占收入 ${Math.round(g.budget / inc * 100)}%</em>` : ''}</span><span class="n ${over ? 'over' : ''}">${fmt(sp)} / ${fmt(g.budget)}</span></div>
+      <div class="track"><div class="fill ${over ? 'over' : ''}" data-w="${Math.min(100, sp / g.budget * 100).toFixed(1)}"></div></div>
+      <div class="b-sub">${over ? '超支 $' + fmt(-left) : '剩 $' + fmt(left) + (cur && dl > 0 ? ' · 每天可花 $' + fmt(Math.floor(left / dl)) : '')}</div></div>`;
+  });
+  const other = r2(totals(key).e - spentIn);
+  if (other > 0) h += `<div class="b-sub other">未列入預算的支出 $${fmt(other)}</div>`;
+  return h + '</section>';
+}
+
+function rowHtml(x) {
+  const cat = catOf(x.c), sub = [x.n, x.p].filter(Boolean).join(' · '), inc = x.t === 'i';
+  return `<button type="button" class="row" data-a="edit" data-id="${esc(x.id)}"><span class="stamp ${inc ? 'in' : ''}">${esc(glyph(cat))}</span>
+    <span class="meta"><span class="cat">${esc(cat.name)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</span>
+    <span class="amt n ${inc ? 'in' : ''}">${inc ? '+' : ''}${fmt(x.a)}</span></button>`;
+}
+
+function viewList() {
+  const key = S.month, all = items(key);
+  let h = notices() + summaryHtml(key);
+  h += `<div class="seg sm filter" role="group" aria-label="篩選">${[['all', '全部'], ['e', '支出'], ['i', '收入']].map(([f, l]) =>
+    `<button type="button" data-a="filter" data-f="${f}" aria-pressed="${S.filter === f}">${l}</button>`).join('')}</div>`;
+  const shown = all.filter(x => S.filter === 'all' || x.t === S.filter)
+    .sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : (b.ts || 0) - (a.ts || 0));
+  if (!shown.length) {
+    h += all.length
+      ? '<div class="empty"><h2>這個篩選下沒有記錄</h2></div>'
+      : `<div class="empty"><div class="empty-mark n">0</div><h2>這個月還沒有記錄</h2><p>輸入金額，點一下類別，就記好了。</p><button type="button" class="btn" data-a="add">記第一筆</button></div>`;
+    return h;
+  }
+  const groups = [];
+  shown.forEach(x => { const g = groups[groups.length - 1]; if (g && g.d === x.d) g.list.push(x); else groups.push({ d: x.d, list: [x] }); });
+  groups.forEach(g => {
+    const dayE = r2(g.list.filter(x => x.t !== 'i').reduce((s, x) => s + x.a, 0));
+    const [yy, mm, dd] = g.d.split('-').map(Number);
+    h += `<section class="day"><div class="day-h"><span>${mm}/${dd} 週${WD[new Date(yy, mm - 1, dd).getDay()]}${g.d === today() ? '<em class="tag">今天</em>' : ''}</span>${dayE > 0 ? `<span class="n">支出 $${fmt(dayE)}</span>` : ''}</div>${g.list.map(rowHtml).join('')}</section>`;
+  });
+  return h;
+}
+
+function dailyChart(daily, key) {
+  const W = 360, H = 150, L = 34, R = 6, T = 8, B = 20, iw = W - L - R, ih = H - T - B, n = daily.length;
+  const max = niceMax(Math.max.apply(null, daily)), y = v => T + ih - (v / max) * ih, bw = iw / n, w = Math.max(2, bw * 0.64);
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="每日金額長條圖">`;
+  [0, 0.5, 1].forEach(f => {
+    s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(max * f).toFixed(1)}" y2="${y(max * f).toFixed(1)}"/><text x="${L - 6}" y="${(y(max * f) + 3).toFixed(1)}" text-anchor="end">${compact(max * f)}</text>`;
+  });
+  daily.forEach((v, i) => {
+    if (v <= 0) return;
+    const x = L + i * bw + (bw - w) / 2, top = y(v);
+    s += `<rect class="bar" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${(T + ih - top).toFixed(1)}" rx="1.5"/>`;
+  });
+  [1, 5, 10, 15, 20, 25, n].filter((d, i, a) => d <= n && a.indexOf(d) === i && (d === n || n - d >= 3)).forEach(d => {
+    s += `<text x="${(L + (d - 1) * bw + bw / 2).toFixed(1)}" y="${H - 5}" text-anchor="middle">${d}</text>`;
+  });
+  return s + '</svg>';
+}
+
+function monthsChart(keys, vals) {
+  const W = 360, H = 140, L = 8, R = 8, T = 18, B = 22, iw = W - L - R, ih = H - T - B, n = keys.length;
+  const max = niceMax(Math.max.apply(null, vals)), bw = iw / n, w = bw * 0.5;
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="近六個月長條圖"><line class="grid" x1="${L}" x2="${W - R}" y1="${T + ih}" y2="${T + ih}"/>`;
+  keys.forEach((k, i) => {
+    const v = vals[i], h = (v / max) * ih, x = L + i * bw + (bw - w) / 2, last = i === n - 1;
+    if (v > 0) {
+      s += `<rect class="bar ${last ? '' : 'dim'}" x="${x.toFixed(1)}" y="${(T + ih - h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2"/>`;
+      s += `<text x="${(x + w / 2).toFixed(1)}" y="${(T + ih - h - 4).toFixed(1)}" text-anchor="middle">${compact(v)}</text>`;
+    }
+    s += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${+k.slice(5, 7)}月</text>`;
+  });
+  return s + '</svg>';
+}
+
+function viewStats() {
+  const key = S.month, type = S.stat, label = type === 'e' ? '支出' : '收入';
+  const list = items(key).filter(x => x.t === type);
+  const total = r2(list.reduce((s, x) => s + x.a, 0)), n = daysIn(key);
+  let h = notices() + `<div class="stat-head"><div class="seg" role="group" aria-label="類型">
+    <button type="button" data-a="stat" data-s="e" aria-pressed="${type === 'e'}">支出</button>
+    <button type="button" data-a="stat" data-s="i" aria-pressed="${type === 'i'}">收入</button></div></div>`;
+  h += `<section class="sum1"><div class="lbl">${label}合計</div><div class="big n">$${fmt(total)}</div>`;
+  if (!list.length) return h + `</section><div class="empty"><h2>這個月沒有${label}記錄</h2><p>有記錄後，這裡會顯示每日走勢和類別占比。</p></div>`;
+
+  const daily = new Array(n).fill(0);
+  list.forEach(x => { const d = +x.d.slice(8, 10); if (d >= 1 && d <= n) daily[d - 1] = r2(daily[d - 1] + x.a); });
+  const elapsed = key === ymOf(today()) ? new Date().getDate() : n, peak = Math.max.apply(null, daily), pd = daily.indexOf(peak) + 1;
+  h += `<div class="subline">${list.length} 筆 · 日均 $${fmt(total / elapsed)} · 最高 ${+key.slice(5, 7)}/${pd} $${fmt(peak)}</div></section>`;
+  h += `<section class="card"><h2>每日${label}</h2>${dailyChart(daily, key)}</section>`;
+
+  const by = {}; list.forEach(x => { by[x.c] = r2((by[x.c] || 0) + x.a); });
+  const rows = Object.keys(by).map(id => ({ id, v: by[id] })).sort((a, b) => b.v - a.v);
+  h += `<section class="card"><h2>類別占比</h2><div>${rows.map(r => {
+    const c = catOf(r.id), pct = r.v / total * 100;
+    return `<div class="crow"><span class="stamp ${type === 'i' ? 'in' : ''}">${esc(glyph(c))}</span><div><div class="cl"><span>${esc(c.name)}</span><span class="muted n">${Math.round(pct)}%</span></div><div class="track"><div class="fill" data-w="${pct.toFixed(1)}"></div></div></div><span class="camt n">$${fmt(r.v)}</span></div>`;
+  }).join('')}</div></section>`;
+
+  if (type === 'e') {
+    const gb = groupSpend(key);
+    const gr = S.cfg.groups.map(g => ({ n: g.name, b: g.budget, v: gb[g.id] || 0 })).concat([{ n: '未分組', b: 0, v: gb[''] || 0 }]).filter(r => r.v > 0).sort((a, b) => b.v - a.v);
+    if (gr.length) {
+      h += `<section class="card"><h2>按屬性</h2><div>${gr.map(r => {
+        const pct = r.v / total * 100;
+        return `<div class="crow"><span class="stamp">${esc(Array.from(r.n)[0] || '?')}</span><div><div class="cl"><span>${esc(r.n)}${r.b > 0 ? `<span class="muted"> · 預算 ${fmt(r.b)}</span>` : ''}</span><span class="muted n">${Math.round(pct)}%</span></div><div class="track"><div class="fill" data-w="${pct.toFixed(1)}"></div></div></div><span class="camt n">$${fmt(r.v)}</span></div>`;
+      }).join('')}</div></section>`;
+    }
+  }
+  const keys = [0, 1, 2, 3, 4, 5].map(i => addMonth(key, i - 5));
+  const vals = keys.map(k => r2(items(k).filter(x => x.t === type).reduce((s, x) => s + x.a, 0)));
+  h += `<section class="card"><h2>近六個月${label}</h2>${monthsChart(keys, vals)}</section>`;
+  return h;
+}
+
+function viewSettings() {
+  const cfg = S.cfg, tab = S.catTab;
+  let h = notices() + '<h1 class="ptitle">設定</h1>';
+  const inc = cfg.income, alloc = r2(cfg.groups.reduce((s, g) => s + g.budget, 0));
+  h += `<section class="sec"><h2>收入與預算</h2><label class="field" for="income"><span>預計月收入</span><input id="income" type="number" inputmode="numeric" min="0" step="1000" placeholder="例如 20000" value="${inc || ''}"></label>
+    <div class="list mt">${cfg.groups.map(g =>
+      `<div class="grow"><input id="gn-${esc(g.id)}" data-gn="${esc(g.id)}" value="${esc(g.name)}" maxlength="6" aria-label="屬性名稱"><input id="gb-${esc(g.id)}" data-gb="${esc(g.id)}" type="number" inputmode="numeric" min="0" step="100" value="${g.budget || ''}" placeholder="預算" aria-label="${esc(g.name)}每月預算"><span class="n muted pctc">${inc > 0 && g.budget > 0 ? Math.round(g.budget / inc * 100) + '%' : ''}</span><button type="button" class="textbtn" data-a="grpDel" data-id="${esc(g.id)}" aria-label="刪除${esc(g.name)}">刪除</button></div>`).join('')}</div>
+    <div class="addrow"><input id="new-grp" maxlength="6" placeholder="新增屬性，例如：食" aria-label="新增屬性" autocomplete="off"><button type="button" class="btn" data-a="grpAdd">新增</button></div>
+    <p class="alloc">已分配 $${fmt(alloc)}${inc > 0 ? `（占收入 ${Math.round(alloc / inc * 100)}%），${alloc <= inc ? '未分配 $' + fmt(inc - alloc) : '超出收入 $' + fmt(alloc - inc)}` : ''}</p>
+    <p class="help">預算按「屬性」分配。例如「食」包含早餐、午餐、晚餐、宵夜，一個月 $5,000，占收入 25%。每個類別屬於哪個屬性，在下方「類別」選。預算留空表示不設限。</p></section>`;
+  h += `<section class="sec"><h2>類別</h2><div class="seg sm" role="group" aria-label="類別類型">
+    <button type="button" data-a="catTab" data-t="e" aria-pressed="${tab === 'e'}">支出類別</button>
+    <button type="button" data-a="catTab" data-t="i" aria-pressed="${tab === 'i'}">收入類別</button></div>
+    <div class="list">${cfg.cats.filter(c => c.t === tab).map(c =>
+      `<div class="srow ${c.off ? 'off' : ''} ${c.t === 'e' ? 'has-g' : ''}"><span class="stamp ${c.t === 'i' ? 'in' : ''}">${esc(glyph(c))}</span><input id="cn-${esc(c.id)}" data-cn="${esc(c.id)}" value="${esc(c.name)}" maxlength="8" aria-label="類別名稱">${c.t === 'e' ? `<select class="sel" id="cg-${esc(c.id)}" data-cg="${esc(c.id)}" aria-label="${esc(c.name)}的屬性"><option value="">無屬性</option>${cfg.groups.map(g => `<option value="${esc(g.id)}"${g.id === c.g ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}</select>` : ''}<button type="button" class="textbtn" data-a="catToggle" data-id="${esc(c.id)}">${c.off ? '顯示' : '隱藏'}</button></div>`).join('')}</div>
+    <div class="addrow"><input id="new-cat" maxlength="8" placeholder="新增類別名稱" aria-label="新增類別名稱" autocomplete="off"><button type="button" class="btn" data-a="catAdd">新增</button></div>
+    <p class="help">隱藏的類別不會出現在記帳選單，舊記錄不受影響。</p></section>`;
+  h += `<section class="sec"><h2>付款方式</h2><div class="chips">${cfg.pays.map((p, i) =>
+    `<span class="chip rm">${esc(p)}<button type="button" data-a="payDel" data-i="${i}" aria-label="移除${esc(p)}">×</button></span>`).join('')}</div>
+    <div class="addrow"><input id="new-pay" maxlength="8" placeholder="新增付款方式" aria-label="新增付款方式" autocomplete="off"><button type="button" class="btn" data-a="payAdd">新增</button></div></section>`;
+  const count = Object.keys(S.months).reduce((s, k) => s + S.months[k].length, 0);
+  const lb = pref('backup');
+  h += `<section class="sec"><h2>資料</h2><div class="list datarow"><p>共 ${count} 筆記錄。${S.mode === 'cloud' ? '存在你的 Claude 帳號，只有你看得到。' : S.pwa ? '只存在這支手機上，沒有網路也能使用。換手機或清除資料前，請先備份。' : '存在這個瀏覽器。'}</p><p class="muted">上次備份：${lb ? esc(lb) : '尚未備份'}</p></div>
+    <button type="button" class="btn wide" data-a="backup">備份全部資料（JSON）</button>
+    <button type="button" class="btn ghost wide" data-a="restore">從備份檔還原</button>
+    <button type="button" class="btn ghost wide" data-a="export">匯出記錄（CSV）</button>
+    <p class="help">還原會把備份裡的記錄合併進來，相同的筆不會重複，並以備份中的設定取代目前設定。</p></section>`;
+  return h;
+}
+
+const chev = d => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d < 0 ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}"/></svg>`;
+
+function renderBar() {
+  const bar = $('#mbar');
+  if (S.view === 'settings') { bar.hidden = true; return; }
+  bar.hidden = false;
+  const cur = S.month === ymOf(today());
+  bar.innerHTML = `<button type="button" class="nav" data-a="prev" aria-label="上個月">${chev(-1)}</button>
+    <div class="mlabel"><span class="y n">${S.month.slice(0, 4)}</span><span class="m">${+S.month.slice(5, 7)} 月</span>${cur ? '' : '<button type="button" class="pill" data-a="thisMonth">回到本月</button>'}</div>
+    <button type="button" class="nav" data-a="next" aria-label="下個月">${chev(1)}</button>`;
+}
+
+function renderMain() {
+  const m = $('#main');
+  m.innerHTML = !S.ready ? '<div class="loading">讀取帳本中…</div>' : S.view === 'stats' ? viewStats() : S.view === 'settings' ? viewSettings() : viewList();
+  $$('[data-w]', m).forEach(el => { el.style.width = el.dataset.w + '%'; });
+}
+
+function renderTabs() {
+  $$('.tab').forEach(b => { if (b.dataset.v === S.view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+}
+
+function keepFocus(fn) {
+  const a = document.activeElement, main = $('#main');
+  const id = a && a.id && main.contains(a) ? a.id : null;
+  const v = id ? a.value : null;
+  let sel = null; try { if (id && a.selectionStart != null) sel = [a.selectionStart, a.selectionEnd]; } catch (e) {}
+  fn();
+  if (id) {
+    const b = document.getElementById(id);
+    if (b) { b.value = v; b.focus(); try { if (sel && b.setSelectionRange) b.setSelectionRange(sel[0], sel[1]); } catch (e) {} }
+  }
+}
+
+function render() { keepFocus(() => { renderBar(); renderMain(); renderTabs(); }); }
+
+/* ---------- toast ---------- */
+let toastT = 0;
+function toast(msg, bad) {
+  const t = $('#toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- entry sheet ---------- */
+const sumAmt = s => r2(s.split('+').reduce((t, p) => t + (parseFloat(p) || 0), 0));
+const fmtSeg = seg => { const [i, d] = seg.split('.'); const ip = i === '' ? '0' : Number(i).toLocaleString('en-US'); return d === undefined ? ip : ip + '.' + d; };
+const hint = m => { $('#sh-hint').textContent = m || ''; };
+
+function shAmt() {
+  const parts = SH.amt.split('+'), el = $('#sh-amt');
+  el.textContent = parts.map(fmtSeg).join('+');
+  el.classList.toggle('zero', SH.amt === '0');
+  $('#sh-total').textContent = parts.length > 1 ? '= ' + fmt(sumAmt(SH.amt)) : '';
+}
+function shType() {
+  $$('[data-a="sh-type"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === SH.t)));
+}
+function shCats() {
+  const list = S.cfg.cats.filter(c => c.t === SH.t && (!c.off || c.id === SH.c));
+  $('#sh-cats').innerHTML = list.length
+    ? list.map(c => `<button type="button" class="cat-btn" data-a="sh-cat" data-id="${esc(c.id)}" aria-pressed="${c.id === SH.c}"><span class="stamp ${SH.t === 'i' ? 'in' : ''}">${esc(glyph(c))}</span>${esc(c.name)}</button>`).join('')
+    : '<div class="cat-none">還沒有類別，請先到「設定」新增。</div>';
+}
+function shPays() {
+  const pays = S.cfg.pays;
+  $('#sh-paywrap').hidden = !pays.length;
+  $('#sh-pays').innerHTML = pays.map(p => `<button type="button" class="chip" data-a="sh-pay" data-p="${esc(p)}" aria-pressed="${p === SH.p}">${esc(p)}</button>`).join('');
+}
+
+function openSheet(tx) {
+  const pays = S.cfg.pays, last = pref('pay');
+  SH = {
+    editing: tx || null, id: tx ? tx.id : null, ts: tx ? tx.ts : null, t: tx ? tx.t : 'e',
+    amt: tx ? String(tx.a) : '0', c: tx ? tx.c : '',
+    p: tx ? tx.p : (last && pays.indexOf(last) >= 0 ? last : (pays[0] || ''))
+  };
+  $('#sh-note').value = tx ? (tx.n || '') : '';
+  $('#sh-date').value = tx ? tx.d : today();
+  const del = $('#sh-del'); del.hidden = !tx; del.classList.remove('armed'); del.textContent = '刪除這筆';
+  hint(''); shType(); shAmt(); shCats(); shPays();
+  $('#sheet').hidden = false;
+  $('#mainwrap').inert = true; $('#tabbar').inert = true;
+  document.documentElement.style.overflow = 'hidden';
+  $('.p-scroll').scrollTop = 0;
+}
+function closeSheet() {
+  if ($('#sheet').hidden) return;
+  $('#sheet').hidden = true; $('#panel').classList.remove('typing');
+  $('#mainwrap').inert = false; $('#tabbar').inert = false;
+  document.documentElement.style.overflow = '';
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  SH = null;
+}
+
+function pressKey(k) {
+  let s = SH.amt; const last = s.split('+').pop();
+  const dec = last.indexOf('.') >= 0 ? last.length - last.indexOf('.') - 1 : -1;
+  if (/^\d$|^00$/.test(k)) {
+    if (s.length >= 14) return;
+    if (dec >= 0 && dec + k.length > 2) return;
+    if (k === '00') { if (last === '' || last === '0') return; s += '00'; }
+    else if (last === '0') s = s.slice(0, -1) + k;
+    else s += k;
+  } else if (k === '.') {
+    if (dec >= 0 || s.length >= 14) return;
+    s += last === '' ? '0.' : '.';
+  } else if (k === '+') {
+    if (last === '') return;
+    s += '+';
+  } else if (k === 'bk') {
+    s = s.slice(0, -1) || '0';
+  }
+  SH.amt = s; hint(''); shAmt();
+}
+
+function saveTx(tx, old) {
+  const nk = ymOf(tx.d);
+  const upsert = list => { const i = list.findIndex(x => x.id === tx.id); if (i >= 0) list[i] = tx; else list.push(tx); return list; };
+  let job = store.mutateMonth(nk, upsert);
+  if (old && ymOf(old.d) !== nk) job = job.then(() => store.mutateMonth(ymOf(old.d), l => l.filter(x => x.id !== old.id)));
+  S.month = nk;
+  run(job, old ? '已更新' : '已記下');
+  render();
+}
+
+function shSave() {
+  const total = sumAmt(SH.amt);
+  if (!(total > 0)) { hint('請輸入金額'); return; }
+  if (!SH.c) { hint('請選擇類別'); $('#sh-cats').scrollIntoView({ block: 'nearest' }); return; }
+  const tx = { id: SH.id || mkId(), t: SH.t, a: total, c: SH.c, n: $('#sh-note').value.trim(), d: $('#sh-date').value || today(), p: SH.p || '', ts: SH.ts || Date.now() };
+  const old = SH.editing;
+  if (SH.p) pref('pay', SH.p);
+  closeSheet();
+  saveTx(tx, old);
+}
+
+let delT = 0;
+function shDelete() {
+  const b = $('#sh-del');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed'); b.textContent = '再按一次確認刪除';
+    clearTimeout(delT); delT = setTimeout(() => { b.classList.remove('armed'); b.textContent = '刪除這筆'; }, 3000);
+    return;
+  }
+  const old = SH.editing; closeSheet();
+  run(store.mutateMonth(ymOf(old.d), l => l.filter(x => x.id !== old.id)), '已刪除');
+}
+
+/* ---------- settings actions ---------- */
+function saveCfg(msg) { run(store.saveCfg(S.cfg), msg); render(); }
+
+function addCat() {
+  const el = $('#new-cat'), name = el.value.trim();
+  if (!name) { toast('請輸入類別名稱', true); return; }
+  S.cfg.cats.push({ id: 'c' + mkId(), name, t: S.catTab, off: false });
+  saveCfg('已新增類別');
+}
+function addGrp() {
+  const el = $('#new-grp'), name = el.value.trim();
+  if (!name) { toast('請輸入屬性名稱', true); return; }
+  S.cfg.groups.push({ id: 'g' + mkId(), name, budget: 0 });
+  saveCfg('已新增屬性');
+}
+function addPay() {
+  const el = $('#new-pay'), name = el.value.trim();
+  if (!name) { toast('請輸入付款方式', true); return; }
+  if (S.cfg.pays.indexOf(name) < 0) S.cfg.pays.push(name);
+  saveCfg('已新增付款方式');
+}
+
+const csvCell = (v, text) => {
+  let s = String(v);
+  if (text && /^[=+\-@]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+async function doExport() {
+  const all = []; Object.keys(S.months).forEach(k => S.months[k].forEach(x => all.push(x)));
+  all.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : (a.ts || 0) - (b.ts || 0));
+  const rows = [['日期', '類型', '類別', '金額', '付款方式', '備註']];
+  all.forEach(x => rows.push([x.d, x.t === 'i' ? '收入' : '支出', catOf(x.c).name, x.a, x.p || '', x.n || '']));
+  const csv = '﻿' + rows.map((r, i) => r.map((c, j) => csvCell(c, i > 0 && (j === 2 || j === 4 || j === 5))).join(',')).join('\r\n');
+  return outFile('日日帳-' + today() + '.csv', csv, 'text/csv', '已匯出');
+}
+
+/* hands a generated file to the viewer: the artifact's save prompt, else the phone's share sheet, else a plain download, else the clipboard */
+async function outFile(filename, text, mime, okMsg) {
+  if (S.dl) {
+    try { await S.dl.save({ filename, data: text }); toast(okMsg); return true; }
+    catch (e) { if (!e || e.code !== 'declined') toast('這裡無法匯出', true); return false; }
+  }
+  try {
+    const file = new File([text], filename, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); toast(okMsg); return true; }
+  } catch (e) { if (e && e.name === 'AbortError') return false; }
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: mime }));
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(okMsg); return true;
+  } catch (e) {}
+  try { await navigator.clipboard.writeText(text); toast('已複製到剪貼簿'); return true; }
+  catch (e) { toast('這裡無法匯出', true); return false; }
+}
+
+async function doBackup() {
+  const payload = { app: 'rrz-ledger', version: 1, exportedAt: new Date().toISOString(), settings: S.cfg, months: S.months };
+  if (await outFile('日日帳備份-' + today() + '.json', JSON.stringify(payload), 'application/json', '已備份')) {
+    pref('backup', today()); if (S.view === 'settings') render();
+  }
+}
+
+const okTx = x => !!x && typeof x === 'object' && typeof x.id === 'string' && x.id !== '' && (x.t === 'e' || x.t === 'i') &&
+  isFinite(+x.a) && +x.a > 0 && typeof x.c === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(String(x.d || ''));
+
+function importBackup(file) {
+  const rd = new FileReader();
+  rd.onerror = () => toast('讀不到這個檔案', true);
+  rd.onload = () => {
+    let obj = null;
+    try { obj = JSON.parse(String(rd.result)); } catch (e) {}
+    if (!obj || obj.app !== 'rrz-ledger' || !obj.months || typeof obj.months !== 'object') { toast('這不是日日帳的備份檔', true); return; }
+    const byMonth = {}; let n = 0;
+    Object.keys(obj.months).forEach(k => {
+      (Array.isArray(obj.months[k]) ? obj.months[k] : []).filter(okTx).forEach(x => {
+        const tx = { id: x.id, t: x.t, a: r2(+x.a), c: x.c, n: typeof x.n === 'string' ? x.n.slice(0, 60) : '', d: x.d, p: typeof x.p === 'string' ? x.p : '', ts: +x.ts || 0 };
+        (byMonth[ymOf(tx.d)] = byMonth[ymOf(tx.d)] || []).push(tx); n++;
+      });
+    });
+    const hasCfg = !!obj.settings && typeof obj.settings === 'object';
+    if (!n && !hasCfg) { toast('備份檔裡沒有記錄', true); return; }
+    let job = Promise.resolve();
+    Object.keys(byMonth).forEach(k => {
+      job = job.then(() => store.mutateMonth(k, list => {
+        const seen = new Set(list.map(x => x.id));
+        byMonth[k].forEach(x => { if (!seen.has(x.id)) list.push(x); });
+        return list;
+      }));
+    });
+    if (hasCfg) { const cfg = normCfg(obj.settings); job = job.then(() => store.saveCfg(cfg)); }
+    run(job, '已還原 ' + n + ' 筆記錄');
+  };
+  rd.readAsText(file);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  if (e.target === $('#sheet')) { closeSheet(); return; }
+  const el = e.target.closest('[data-a]'); if (!el) return;
+  const d = el.dataset;
+  switch (d.a) {
+    case 'view': S.view = d.v; render(); window.scrollTo(0, 0); break;
+    case 'prev': S.month = addMonth(S.month, -1); render(); break;
+    case 'next': S.month = addMonth(S.month, 1); render(); break;
+    case 'thisMonth': S.month = ymOf(today()); render(); break;
+    case 'filter': S.filter = d.f; render(); break;
+    case 'stat': S.stat = d.s; render(); break;
+    case 'catTab': S.catTab = d.t; render(); break;
+    case 'add': if (S.ready) openSheet(null); break;
+    case 'edit': { const tx = findTx(d.id); if (tx) openSheet(tx); break; }
+    case 'catToggle': { const c = S.cfg.cats.find(x => x.id === d.id); if (c) { c.off = !c.off; saveCfg(); } break; }
+    case 'catAdd': addCat(); break;
+    case 'grpAdd': addGrp(); break;
+    case 'grpDel': {
+      S.cfg.cats.forEach(c => { if (c.g === d.id) c.g = ''; });
+      S.cfg.groups = S.cfg.groups.filter(g => g.id !== d.id);
+      saveCfg('已刪除屬性');
+      break;
+    }
+    case 'payAdd': addPay(); break;
+    case 'payDel': S.cfg.pays.splice(+d.i, 1); saveCfg(); break;
+    case 'export': doExport(); break;
+    case 'backup': doBackup(); break;
+    case 'restore': $('#imp').click(); break;
+    case 'sh-close': closeSheet(); break;
+    case 'sh-save': shSave(); break;
+    case 'sh-del': shDelete(); break;
+    case 'k': pressKey(d.k); break;
+    case 'sh-type':
+      if (SH.t !== d.t) { SH.t = d.t; SH.c = ''; hint(''); shType(); shCats(); }
+      break;
+    case 'sh-cat': SH.c = d.id; hint(''); shCats(); break;
+    case 'sh-pay': SH.p = SH.p === d.p ? '' : d.p; shPays(); break;
+    case 'sh-qd': { const dt = new Date(); dt.setDate(dt.getDate() + (+d.o)); $('#sh-date').value = dstr(dt); break; }
+  }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  const gOf = id => S.cfg.groups.find(x => x.id === id);
+  if (t.id === 'income') {
+    S.cfg.income = Math.max(0, Math.round(+t.value || 0));
+    saveCfg('已更新預計月收入');
+  } else if (t.dataset && t.dataset.gb) {
+    const g = gOf(t.dataset.gb);
+    if (g) { g.budget = Math.max(0, Math.round(+t.value || 0)); saveCfg('已更新預算'); }
+  } else if (t.dataset && t.dataset.gn) {
+    const g = gOf(t.dataset.gn), name = t.value.trim();
+    if (g && name) { g.name = name; saveCfg(); } else render();
+  } else if (t.dataset && t.dataset.cg) {
+    const c = S.cfg.cats.find(x => x.id === t.dataset.cg);
+    if (c) { c.g = t.value; saveCfg(); }
+  } else if (t.dataset && t.dataset.cn) {
+    const c = S.cfg.cats.find(x => x.id === t.dataset.cn), name = t.value.trim();
+    if (c && name) { c.name = name; saveCfg(); } else render();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet();
+  if (e.key === 'Enter') {
+    if (e.target.id === 'new-cat') { e.preventDefault(); addCat(); }
+    else if (e.target.id === 'new-pay') { e.preventDefault(); addPay(); }
+    else if (e.target.id === 'new-grp') { e.preventDefault(); addGrp(); }
+  }
+});
+
+$('#imp').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) importBackup(f);
+  e.target.value = '';
+});
+
+const note = $('#sh-note');
+note.addEventListener('focus', () => $('#panel').classList.add('typing'));
+note.addEventListener('blur', () => $('#panel').classList.remove('typing'));
+note.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); note.blur(); } });
+
+/* ---------- start ---------- */
+async function init() {
+  render();
+  let db = null, uid = null;
+  try {
+    const c = window.claude;
+    if (c && c.use) {
+      const got = await Promise.race([
+        (async () => {
+          const d = await c.use('db'); const u = await c.use('user');
+          const id = u ? await u.id() : null; const dl = await c.use('downloads');
+          return { d, id, dl };
+        })(),
+        new Promise(r => setTimeout(() => r(null), 8000))
+      ]);
+      if (got) { db = got.d; uid = got.id; S.dl = got.dl || null; }
+    }
+  } catch (e) {}
+  S.pwa = !window.claude;
+  if (db && uid) { store = cloudStore(db, uid); S.mode = 'cloud'; }
+  else {
+    store = localStore(); S.mode = 'local';
+    if (S.pwa) {
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+      try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch (e) {}
+    }
+  }
+  store.subscribe(ingest, e => {
+    S.err = e && e.code === 'revoked' ? '連線已中斷，請重新開啟這個頁面。' : '無法讀取帳本，請稍後重新開啟頁面。';
+    S.ready = true; render();
+  });
+}
+init();
+})();
+</script>
+</body>
+</html>
