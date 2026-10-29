@@ -74,9 +74,12 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .neg{color:var(--warn)}
 .budget{background:var(--surface);border-radius:14px;padding:12px 14px;margin-top:8px}
 .b-top{display:flex;justify-content:space-between;gap:8px;font-size:14px}
-.track{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}
-.fill{height:100%;border-radius:3px;background:var(--accent);width:0}
+.track{display:flex;height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px}
+.fill{flex:none;height:100%;border-radius:0 3px 3px 0;background:var(--accent);width:0}
+.fill:not(:last-child){border-radius:0}
 .fill.over{background:var(--warn)}
+.fill.wish{background:repeating-linear-gradient(135deg,var(--bar-dim) 0 4px,transparent 4px 8px)}
+.fill.wish.over{background:repeating-linear-gradient(135deg,var(--warn) 0 4px,transparent 4px 8px)}
 .b-sub{margin-top:8px;font-size:13px;color:var(--muted)}
 .over{color:var(--warn)}
 .brow + .brow{margin-top:14px}
@@ -91,6 +94,27 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .pctc{text-align:right;font-size:13px}
 .srow.has-g{grid-template-columns:36px minmax(0,1fr) 88px auto;gap:8px}
 select.sel{min-width:0;width:100%;height:36px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:inherit;font-size:14px;padding:0 6px}
+.b-sub + .b-sub{margin-top:2px}
+.wlink{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;margin-top:14px;padding:12px 0 0;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);text-align:left;font-size:14px;min-height:44px}
+.wlink::after{content:"›";color:var(--muted);font-size:20px;line-height:1;margin-left:4px}
+.wlink .n{margin-left:auto}
+.card .field{background:var(--bg)}
+.field select{flex:1;min-width:0;width:100%;border:0;background:transparent;color:inherit;font-size:16px;padding:12px 0}
+.field select:focus-visible{outline:0}
+.wrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:4px 14px;border-top:1px solid var(--line)}
+.wrow:first-child{border-top:0}
+.wmain{display:flex;flex-direction:column;justify-content:center;min-width:0;min-height:48px;padding:6px 0;border:0;background:none;text-align:left}
+.wbuy{height:36px;padding:0 14px;border-radius:999px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-weight:500}
+.wedit{display:grid;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.wedit:first-child{border-top:0}
+.wedit input,.wedit .sel{min-width:0;width:100%;height:44px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:inherit;padding:0 12px;font-size:16px}
+.wedit2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wedit3{display:flex;align-items:center;gap:8px}
+.wedit3 .btn{height:40px}
+.warnbtn{color:var(--warn);margin-left:auto}
+.wf2{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+.wf2 .field{gap:8px;padding:0 12px}
+.wf2 .field > span{min-width:0}
 
 /* segmented control */
 .seg{display:inline-flex;background:var(--line);border-radius:10px;padding:3px;gap:2px}
@@ -228,6 +252,9 @@ svg.chart .bar.dim{fill:var(--bar-dim)}
     <button type="button" class="tab" data-a="view" data-v="stats">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span>統計</span>
     </button>
+    <button type="button" class="tab" data-a="view" data-v="wish">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 4h2.5l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 8H6.2"/></svg><span>想買</span>
+    </button>
     <button type="button" class="tab" data-a="view" data-v="settings">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg><span>設定</span>
     </button>
@@ -335,7 +362,7 @@ function normCfg(c) {
   };
 }
 
-const S = { view: 'list', month: ymOf(today()), filter: 'all', stat: 'e', catTab: 'e', cfg: normCfg(null), months: {}, ready: false, mode: null, err: '', dl: null };
+const S = { view: 'list', month: ymOf(today()), filter: 'all', stat: 'e', catTab: 'e', cfg: normCfg(null), months: {}, wish: [], wishEdit: '', wishDel: '', wf: { n: '', p: '', g: '' }, ready: false, mode: null, err: '', dl: null };
 let store = null;
 let SH = null;
 
@@ -365,7 +392,16 @@ function cloudStore(db, uid) {
         await setDoc(ref, { items: fn(items) });
       });
     },
-    saveCfg(cfg) { return enqueue(() => setDoc(col.doc('settings'), clone(cfg))); }
+    saveCfg(cfg) { return enqueue(() => setDoc(col.doc('settings'), clone(cfg))); },
+    mutateWish(fn) {
+      return enqueue(async () => {
+        const ref = col.doc('wish');
+        const s = await ref.get();
+        const d = s.exists ? s.data() : null;
+        const items = d && Array.isArray(d.items) ? d.items.map(x => Object.assign({}, x)) : [];
+        await setDoc(ref, { items: fn(items) });
+      });
+    }
   };
 }
 
@@ -389,18 +425,23 @@ function localStore() {
       const items = ((data[id] && data[id].items) || []).map(x => Object.assign({}, x));
       return commit(id, { items: fn(items) });
     },
-    saveCfg(cfg) { return commit('settings', clone(cfg)); }
+    saveCfg(cfg) { return commit('settings', clone(cfg)); },
+    mutateWish(fn) {
+      const items = ((data.wish && data.wish.items) || []).map(x => Object.assign({}, x));
+      return commit('wish', { items: fn(items) });
+    }
   };
 }
 
 function ingest(docs) {
-  const months = {}; let cfg = null;
+  const months = {}; let cfg = null, wish = null;
   Object.keys(docs).forEach(id => {
     const d = docs[id] || {};
     if (id === 'settings') cfg = d;
+    else if (id === 'wish') wish = d.items;
     else if (/^m-\d{4}-\d{2}$/.test(id)) months[id.slice(2)] = Array.isArray(d.items) ? d.items : [];
   });
-  S.months = months; S.cfg = normCfg(cfg); S.ready = true; S.err = '';
+  S.months = months; S.cfg = normCfg(cfg); S.wish = normWish(wish); S.ready = true; S.err = '';
   render();
 }
 
@@ -451,22 +492,71 @@ function groupSpend(key) {
   return by;
 }
 
-function budgetHtml(key) {
+function normWish(l) {
+  return (Array.isArray(l) ? l : []).filter(x => x && typeof x.id === 'string' && x.id && isFinite(+x.p))
+    .map(x => ({ id: x.id, n: String(x.n || '').slice(0, 40), p: Math.max(0, r2(+x.p)), g: String(x.g || ''), ts: +x.ts || 0 }));
+}
+const groupName = id => { const g = S.cfg.groups.find(q => q.id === id); return g ? g.name : ''; };
+function wishTotals() {
+  const by = {}; let all = 0;
+  S.wish.forEach(w => {
+    all += w.p;
+    const g = groupName(w.g) ? w.g : '';
+    by[g] = r2((by[g] || 0) + w.p);
+  });
+  return { all: r2(all), by };
+}
+
+function budgetHtml(key, noLink) {
   const gs = S.cfg.groups.filter(g => g.budget > 0);
   if (!gs.length) return '';
   const by = groupSpend(key), inc = S.cfg.income, cur = key === ymOf(today()), dl = daysIn(key) - new Date().getDate() + 1;
+  const wt = cur ? wishTotals() : { all: 0, by: {} };
   let spentIn = 0;
   let h = '<section class="card"><h2>本月預算</h2>';
   gs.forEach(g => {
-    const sp = by[g.id] || 0, left = r2(g.budget - sp), over = left < 0;
+    const sp = by[g.id] || 0, wish = wt.by[g.id] || 0, left = r2(g.budget - sp), over = left < 0, after = r2(left - wish);
+    const sp1 = Math.min(100, sp / g.budget * 100), w1 = Math.max(0, Math.min(100 - sp1, wish / g.budget * 100));
     spentIn += sp;
     h += `<div class="brow"><div class="b-top"><span>${esc(g.name)}${inc > 0 ? `<em class="pct">占收入 ${Math.round(g.budget / inc * 100)}%</em>` : ''}</span><span class="n ${over ? 'over' : ''}">${fmt(sp)} / ${fmt(g.budget)}</span></div>
-      <div class="track"><div class="fill ${over ? 'over' : ''}" data-w="${Math.min(100, sp / g.budget * 100).toFixed(1)}"></div></div>
-      <div class="b-sub">${over ? '超支 $' + fmt(-left) : '剩 $' + fmt(left) + (cur && dl > 0 ? ' · 每天可花 $' + fmt(Math.floor(left / dl)) : '')}</div></div>`;
+      <div class="track"><div class="fill ${over ? 'over' : ''}" data-w="${sp1.toFixed(1)}"></div>${wish > 0 ? `<div class="fill wish ${after < 0 ? 'over' : ''}" data-w="${w1.toFixed(1)}"></div>` : ''}</div>
+      <div class="b-sub">${over ? '超支 $' + fmt(-left) : '剩 $' + fmt(left) + (cur && dl > 0 ? ' · 每天可花 $' + fmt(Math.floor(left / dl)) : '')}</div>${wish > 0 ? `<div class="b-sub ${after < 0 ? 'over' : ''}">想買 $${fmt(wish)} · ${after < 0 ? '都買的話會超支 $' + fmt(-after) : '都買的話剩 $' + fmt(after)}</div>` : ''}</div>`;
   });
   const other = r2(totals(key).e - spentIn);
   if (other > 0) h += `<div class="b-sub other">未列入預算的支出 $${fmt(other)}</div>`;
+  if (cur && !noLink) {
+    const n = S.wish.length;
+    h += `<button type="button" class="wlink" data-a="view" data-v="wish"><span>想買清單${n ? ' · ' + n + ' 項' : ''}</span><span class="n">${n ? '$' + fmt(wt.all) : '還沒有項目'}</span></button>`;
+  }
   return h + '</section>';
+}
+
+const wishOptions = sel => '<option value="">不指定</option>' + S.cfg.groups.map(g => `<option value="${esc(g.id)}"${g.id === sel ? ' selected' : ''}>${esc(g.name)}</option>`).join('');
+
+function wishRow(x) {
+  if (S.wishEdit === x.id) {
+    return `<div class="wedit"><input id="we-n" type="text" maxlength="40" value="${esc(x.n)}" aria-label="名稱">
+      <div class="wedit2"><input id="we-p" type="number" inputmode="decimal" min="0" step="any" value="${x.p}" aria-label="價格"><select class="sel" id="we-g" aria-label="屬性">${wishOptions(x.g)}</select></div>
+      <div class="wedit3"><button type="button" class="btn" data-a="wishSave" data-id="${esc(x.id)}">儲存</button><button type="button" class="btn ghost" data-a="wishCancel">取消</button><button type="button" class="textbtn warnbtn" data-a="wishDel" data-id="${esc(x.id)}">${S.wishDel === x.id ? '確定刪除' : '刪除'}</button></div></div>`;
+  }
+  const gn = groupName(x.g);
+  return `<div class="wrow"><button type="button" class="wmain" data-a="wishEdit" data-id="${esc(x.id)}"><span class="cat">${esc(x.n || '未命名')}</span><span class="sub">${gn ? esc(gn) : '未指定屬性'}</span></button><span class="amt n">$${fmt(x.p)}</span><button type="button" class="wbuy" data-a="wishBuy" data-id="${esc(x.id)}" aria-label="已買 ${esc(x.n)}">已買</button></div>`;
+}
+
+function viewWish() {
+  const tot = wishTotals(), n = S.wish.length;
+  let h = notices() + '<h1 class="ptitle">想買清單</h1>';
+  h += `<section class="sum1"><div class="lbl">還沒買的東西</div><div class="big n">$${fmt(tot.all)}</div><div class="subline">${n ? n + ' 項' : '還沒有項目'}</div></section>`;
+  h += budgetHtml(ymOf(today()), true) || '<p class="help">到「設定」替屬性設定預算，這裡就會顯示全部買下去後，每個屬性還剩多少。</p>';
+  h += `<section class="card"><h2>加一項想買的東西</h2>
+    <label class="field" for="wf-name"><span>名稱</span><input id="wf-name" type="text" maxlength="40" placeholder="例如：藍牙耳機" autocomplete="off" enterkeyhint="next" value="${esc(S.wf.n)}"></label>
+    <div class="wf2"><label class="field" for="wf-price"><span>價格</span><input id="wf-price" type="number" inputmode="decimal" min="0" step="any" placeholder="0" enterkeyhint="done" value="${esc(S.wf.p)}"></label>
+    <label class="field" for="wf-grp"><span>屬性</span><select id="wf-grp">${wishOptions(S.wf.g)}</select></label></div>
+    <button type="button" class="btn wide" data-a="wishAdd">加入清單</button></section>`;
+  h += n
+    ? `<section class="day">${S.wish.map(wishRow).join('')}</section>`
+    : '<div class="empty"><h2>想買的東西放這裡</h2><p>輸入名稱和價格，預算就會算出全部買下去後還剩多少。買了之後按「已買」，會直接變成一筆支出。</p></div>';
+  return h;
 }
 
 function rowHtml(x) {
@@ -605,7 +695,7 @@ const chev = d => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" s
 
 function renderBar() {
   const bar = $('#mbar');
-  if (S.view === 'settings') { bar.hidden = true; return; }
+  if (S.view === 'settings' || S.view === 'wish') { bar.hidden = true; return; }
   bar.hidden = false;
   const cur = S.month === ymOf(today());
   bar.innerHTML = `<button type="button" class="nav" data-a="prev" aria-label="上個月">${chev(-1)}</button>
@@ -615,7 +705,7 @@ function renderBar() {
 
 function renderMain() {
   const m = $('#main');
-  m.innerHTML = !S.ready ? '<div class="loading">讀取帳本中…</div>' : S.view === 'stats' ? viewStats() : S.view === 'settings' ? viewSettings() : viewList();
+  m.innerHTML = !S.ready ? '<div class="loading">讀取帳本中…</div>' : S.view === 'stats' ? viewStats() : S.view === 'wish' ? viewWish() : S.view === 'settings' ? viewSettings() : viewList();
   $$('[data-w]', m).forEach(el => { el.style.width = el.dataset.w + '%'; });
 }
 
@@ -670,14 +760,19 @@ function shPays() {
   $('#sh-pays').innerHTML = pays.map(p => `<button type="button" class="chip" data-a="sh-pay" data-p="${esc(p)}" aria-pressed="${p === SH.p}">${esc(p)}</button>`).join('');
 }
 
-function openSheet(tx) {
+function openSheet(tx, pre) {
   const pays = S.cfg.pays, last = pref('pay');
   SH = {
     editing: tx || null, id: tx ? tx.id : null, ts: tx ? tx.ts : null, t: tx ? tx.t : 'e',
-    amt: tx ? String(tx.a) : '0', c: tx ? tx.c : '',
-    p: tx ? tx.p : (last && pays.indexOf(last) >= 0 ? last : (pays[0] || ''))
+    amt: tx ? String(tx.a) : (pre ? String(pre.a) : '0'), c: tx ? tx.c : '',
+    p: tx ? tx.p : (last && pays.indexOf(last) >= 0 ? last : (pays[0] || '')),
+    wishId: pre ? pre.wishId : null
   };
-  $('#sh-note').value = tx ? (tx.n || '') : '';
+  if (pre && pre.g) {
+    const gc = S.cfg.cats.filter(c => c.t === 'e' && c.g === pre.g && !c.off);
+    if (gc.length === 1) SH.c = gc[0].id;
+  }
+  $('#sh-note').value = tx ? (tx.n || '') : (pre ? pre.n : '');
   $('#sh-date').value = tx ? tx.d : today();
   const del = $('#sh-del'); del.hidden = !tx; del.classList.remove('armed'); del.textContent = '刪除這筆';
   hint(''); shType(); shAmt(); shCats(); shPays();
@@ -731,10 +826,11 @@ function shSave() {
   if (!(total > 0)) { hint('請輸入金額'); return; }
   if (!SH.c) { hint('請選擇類別'); $('#sh-cats').scrollIntoView({ block: 'nearest' }); return; }
   const tx = { id: SH.id || mkId(), t: SH.t, a: total, c: SH.c, n: $('#sh-note').value.trim(), d: $('#sh-date').value || today(), p: SH.p || '', ts: SH.ts || Date.now() };
-  const old = SH.editing;
+  const old = SH.editing, wishId = SH.wishId;
   if (SH.p) pref('pay', SH.p);
   closeSheet();
   saveTx(tx, old);
+  if (wishId) store.mutateWish(l => l.filter(x => x.id !== wishId)).catch(() => {});
 }
 
 let delT = 0;
@@ -757,6 +853,29 @@ function addCat() {
   if (!name) { toast('請輸入類別名稱', true); return; }
   S.cfg.cats.push({ id: 'c' + mkId(), name, t: S.catTab, off: false });
   saveCfg('已新增類別');
+}
+function addWish() {
+  const n = ($('#wf-name').value || '').trim(), p = r2(parseFloat($('#wf-price').value));
+  if (!n) { toast('請輸入名稱', true); return; }
+  if (!(p > 0)) { toast('請輸入價格', true); return; }
+  const item = { id: mkId(), n: n.slice(0, 40), p, g: $('#wf-grp').value || '', ts: Date.now() };
+  S.wf = { n: '', p: '', g: item.g };
+  run(store.mutateWish(l => [item].concat(l)), '已加入清單');
+  render();
+}
+function saveWishEdit(id) {
+  const n = ($('#we-n').value || '').trim(), p = r2(parseFloat($('#we-p').value)), g = $('#we-g').value || '';
+  if (!n) { toast('請輸入名稱', true); return; }
+  if (!(p > 0)) { toast('請輸入價格', true); return; }
+  S.wishEdit = ''; S.wishDel = '';
+  run(store.mutateWish(l => l.map(x => x.id === id ? Object.assign({}, x, { n: n.slice(0, 40), p, g }) : x)), '已更新');
+  render();
+}
+function deleteWish(id) {
+  if (S.wishDel !== id) { S.wishDel = id; render(); return; }
+  S.wishEdit = ''; S.wishDel = '';
+  run(store.mutateWish(l => l.filter(x => x.id !== id)), '已刪除');
+  render();
 }
 function addGrp() {
   const el = $('#new-grp'), name = el.value.trim();
@@ -807,7 +926,7 @@ async function outFile(filename, text, mime, okMsg) {
 }
 
 async function doBackup() {
-  const payload = { app: 'rrz-ledger', version: 1, exportedAt: new Date().toISOString(), settings: S.cfg, months: S.months };
+  const payload = { app: 'rrz-ledger', version: 1, exportedAt: new Date().toISOString(), settings: S.cfg, months: S.months, wish: S.wish };
   if (await outFile('日日帳備份-' + today() + '.json', JSON.stringify(payload), 'application/json', '已備份')) {
     pref('backup', today()); if (S.view === 'settings') render();
   }
@@ -831,7 +950,8 @@ function importBackup(file) {
       });
     });
     const hasCfg = !!obj.settings && typeof obj.settings === 'object';
-    if (!n && !hasCfg) { toast('備份檔裡沒有記錄', true); return; }
+    const wishIn = normWish(obj.wish);
+    if (!n && !hasCfg && !wishIn.length) { toast('備份檔裡沒有記錄', true); return; }
     let job = Promise.resolve();
     Object.keys(byMonth).forEach(k => {
       job = job.then(() => store.mutateMonth(k, list => {
@@ -841,7 +961,14 @@ function importBackup(file) {
       }));
     });
     if (hasCfg) { const cfg = normCfg(obj.settings); job = job.then(() => store.saveCfg(cfg)); }
-    run(job, '已還原 ' + n + ' 筆記錄');
+    if (wishIn.length) {
+      job = job.then(() => store.mutateWish(list => {
+        const seen = new Set(list.map(x => x.id));
+        wishIn.forEach(x => { if (!seen.has(x.id)) list.push(x); });
+        return list;
+      }));
+    }
+    run(job, '已還原 ' + n + ' 筆記錄' + (wishIn.length ? '、' + wishIn.length + ' 項想買' : ''));
   };
   rd.readAsText(file);
 }
@@ -852,7 +979,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   const d = el.dataset;
   switch (d.a) {
-    case 'view': S.view = d.v; render(); window.scrollTo(0, 0); break;
+    case 'view': S.view = d.v; S.wishEdit = ''; S.wishDel = ''; render(); window.scrollTo(0, 0); break;
     case 'prev': S.month = addMonth(S.month, -1); render(); break;
     case 'next': S.month = addMonth(S.month, 1); render(); break;
     case 'thisMonth': S.month = ymOf(today()); render(); break;
@@ -875,6 +1002,12 @@ document.addEventListener('click', e => {
     case 'export': doExport(); break;
     case 'backup': doBackup(); break;
     case 'restore': $('#imp').click(); break;
+    case 'wishAdd': addWish(); break;
+    case 'wishEdit': S.wishEdit = d.id; S.wishDel = ''; render(); break;
+    case 'wishCancel': S.wishEdit = ''; S.wishDel = ''; render(); break;
+    case 'wishSave': saveWishEdit(d.id); break;
+    case 'wishDel': deleteWish(d.id); break;
+    case 'wishBuy': { const w = S.wish.find(x => x.id === d.id); if (w) openSheet(null, { a: w.p, n: w.n, wishId: w.id, g: w.g }); break; }
     case 'sh-close': closeSheet(); break;
     case 'sh-save': shSave(); break;
     case 'sh-del': shDelete(); break;
@@ -915,7 +1048,16 @@ document.addEventListener('keydown', e => {
     if (e.target.id === 'new-cat') { e.preventDefault(); addCat(); }
     else if (e.target.id === 'new-pay') { e.preventDefault(); addPay(); }
     else if (e.target.id === 'new-grp') { e.preventDefault(); addGrp(); }
+    else if (e.target.id === 'wf-name') { e.preventDefault(); $('#wf-price').focus(); }
+    else if (e.target.id === 'wf-price') { e.preventDefault(); addWish(); }
   }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'wf-name') S.wf.n = t.value;
+  else if (t.id === 'wf-price') S.wf.p = t.value;
+  else if (t.id === 'wf-grp') S.wf.g = t.value;
 });
 
 $('#imp').addEventListener('change', e => {
